@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!206 &20600000
+BlendTree:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: -EyeLooked
+  m_Childs:
+  - serializedVersion: 2
+    m_Motion: {fileID: 7400000, guid: 1dc50e0c99f664049a58c10fade3e3dc, type: 2}
+    m_Threshold: 0
+    m_Position: {x: 0, y: 0}
+    m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: MovementZ
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: 7400000, guid: 0d04e6799a7181d4596341fdc58ad7c4, type: 2}
+    m_Threshold: 0.5
+    m_Position: {x: -0.02, y: 0.81}
+    m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: MovementZ
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: 7400000, guid: a15026054b5256b4689a599e2610d1b4, type: 2}
+    m_Threshold: 0.6666667
+    m_Position: {x: 0.01, y: -0.9}
+    m_TimeScale: 1
+    m_CycleOffset: 0.5
+    m_DirectBlendParameter: MovementZ
+    m_Mirror: 1
+  - serializedVersion: 2
+    m_Motion: {fileID: 7400000, guid: c6a3afdfbb270d844989c41f5ca86387, type: 2}
+    m_Threshold: 0.8333333
+    m_Position: {x: 1.15, y: -0.02}
+    m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: MovementZ
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: 7400000, guid: 4fe16b47c23a74b4c8e3a51fe261d2a3, type: 2}
+    m_Threshold: 1
+    m_Position: {x: -1.07, y: -0.04}
+    m_TimeScale: 1
+    m_CycleOffset: 0.5
+    m_DirectBlendParameter: MovementZ
+    m_Mirror: 1
+  - serializedVersion: 2
+    m_Motion: {fileID: 7400000, guid: 111cb15949069774eb23658752272105, type: 2}
+    m_Threshold: 1.3333335
+    m_Position: {x: -0.02, y: 1.24}
+    m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: Blend
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: 7400000, guid: c3f6b1acf7a182c418916bfc9caca802, type: 2}
+    m_Threshold: 1.666667
+    m_Position: {x: 0.01, y: -1.36}
+    m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: Blend
+    m_Mirror: 0
+  m_BlendParameter: VRCFaceBlendH
+  m_BlendParameterY: VRCFaceBlendV
+  m_MinThreshold: 0
+  m_MaxThreshold: 1.666667
+  m_UseAutomaticThresholds: 0
+  m_NormalizedBlendValues: 0
+  m_BlendType: 2

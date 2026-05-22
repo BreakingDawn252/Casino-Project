@@ -1,0 +1,69 @@
+{
+  "dependencies": {
+    "com.vrchat.base": {
+      "version": "3.10.1"
+    },
+    "com.vrchat.worlds": {
+      "version": "3.10.1"
+    },
+    "com.vrchat.core.vpm-resolver": {
+      "version": "0.1.29"
+    },
+    "dev.onevr.vrworldtoolkit": {
+      "version": "3.3.2"
+    },
+    "jp.lilxyzw.liltoon": {
+      "version": "2.3.2"
+    },
+    "com.mimylab.fukuroudon": {
+      "version": "3.17.1"
+    },
+    "com.mmmaellon.smartobjectsync": {
+      "version": "3.10.16"
+    },
+    "com.mmmaellon.lightsync": {
+      "version": "1.5.0"
+    }
+  },
+  "locked": {
+    "com.vrchat.base": {
+      "version": "3.10.2",
+      "dependencies": {}
+    },
+    "com.vrchat.worlds": {
+      "version": "3.10.2",
+      "dependencies": {
+        "com.vrchat.base": "3.10.2"
+      }
+    },
+    "com.vrchat.core.vpm-resolver": {
+      "version": "0.1.29",
+      "dependencies": {}
+    },
+    "dev.onevr.vrworldtoolkit": {
+      "version": "3.4.0",
+      "dependencies": {}
+    },
+    "jp.lilxyzw.liltoon": {
+      "version": "2.3.2"
+    },
+    "com.mimylab.fukuroudon": {
+      "version": "3.17.1",
+      "dependencies": {
+        "com.vrchat.worlds": "^3.10.2"
+      }
+    },
+    "com.mmmaellon.smartobjectsync": {
+      "version": "3.10.16",
+      "dependencies": {
+        "com.vrchat.worlds": "^3.4.0"
+      }
+    },
+    "com.mmmaellon.lightsync": {
+      "version": "1.5.0",
+      "dependencies": {
+        "com.vrchat.worlds": "^3.5.2"
+      }
+    }
+  }
+}
