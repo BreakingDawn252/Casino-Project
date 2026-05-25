@@ -1,5 +1,5 @@
 ﻿/* * Canvas Name: BlackjackTab
- * Version: 27
+ * Version: 34
  */
 using UdonSharp;
 using UnityEngine;
@@ -11,6 +11,7 @@ using TMPro;
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class BlackjackTab : UdonSharpBehaviour
 {
+    // [中略: フィールド変数等は変更なしのため省略せず全て記述します]
     [Header("---------------- System ----------------")]
     public BlackjackManager manager;
     public int seatIndex;
@@ -181,6 +182,7 @@ public class BlackjackTab : UdonSharpBehaviour
         bool isTaken = (_ownerPlayerId != -1);
         bool isMe = (Networking.LocalPlayer != null && Networking.LocalPlayer.playerId == _ownerPlayerId);
 
+        // 1. 誰も座っていない席
         if (!isTaken)
         {
             if (panelJoin) panelJoin.SetActive(true);
@@ -188,6 +190,7 @@ public class BlackjackTab : UdonSharpBehaviour
             return;
         }
 
+        // 2. 他人が座っている席
         if (!isMe)
         {
             if (panelWait) panelWait.SetActive(true);
@@ -195,77 +198,62 @@ public class BlackjackTab : UdonSharpBehaviour
             return;
         }
 
+        // 3. 自分が座っている席
+        // ★修正: 自分が参加権利を持っていない場合、ゲーム進行中(Betting以外)は常にウェイト
+        bool hasParticipation = manager.HasGameParticipation(seatIndex);
+        if (_lastGameState > 1 && !hasParticipation)
+        {
+            if (panelWait) panelWait.SetActive(true);
+            statusText.text = "Please wait for the next game...";
+            return;
+        }
+
         string timerText = (_lastAutoMode && _lastGameState == 5) ? $"\n(Next Game: {_lastAutoTimer:F0}s)" : "";
 
-        switch (_lastGameState)
+        // 通常のゲームフロー
+        if (_lastGameState == 3 && _lastTurnSeat == seatIndex)
         {
-            case 0:
-            case 1:
-                if (_lastReadyState)
-                {
-                    if (panelWait) panelWait.SetActive(true);
-                    statusText.text = "Ready! Waiting for others...";
-                }
-                else
-                {
-                    if (panelBet) panelBet.SetActive(true);
-                    statusText.text = "Place Your Bet & Ready";
-                }
-                break;
-                
-            case 2:
+            if (panelAction) panelAction.SetActive(true);
+            statusText.text = "Your Turn";
+        }
+        else if (_lastGameState >= 2 && _lastGameState <= 4)
+        {
+            if (panelWait) panelWait.SetActive(true);
+            statusText.text = "Waiting...";
+        }
+        else if (_lastGameState == 5)
+        {
+            if (_localResultConfirmed)
+            {
                 if (panelWait) panelWait.SetActive(true);
-                statusText.text = "Dealing...";
-                break;
-                
-            case 3:
-                if (_lastHandCount == 0)
+                statusText.text = "Confirmed." + timerText;
+            }
+            else
+            {
+                if (panelResult) panelResult.SetActive(true);
+                float bet = manager.GetSeatBet(seatIndex);
+                float payout = manager.GetSeatPayout(seatIndex);
+                if (bet > 0)
                 {
-                    if (panelWait) panelWait.SetActive(true);
-                    statusText.text = "Waiting...";
+                    if (payout > bet) statusText.text = $"YOU WIN! +${payout - bet:F0}" + timerText;
+                    else if (payout == bet) statusText.text = "PUSH (DRAW)" + timerText;
+                    else statusText.text = "YOU LOSE" + timerText;
                 }
-                else if (_lastTurnSeat == seatIndex)
-                {
-                    if (panelAction) panelAction.SetActive(true);
-                    statusText.text = "Your Turn";
-                }
-                else
-                {
-                    if (panelWait) panelWait.SetActive(true);
-                    statusText.text = "Waiting for others...";
-                }
-                break;
-                
-            case 4:
+                else statusText.text = "Game Over" + timerText;
+            }
+        }
+        else
+        {
+            if (_lastReadyState)
+            {
                 if (panelWait) panelWait.SetActive(true);
-                statusText.text = "Dealer's Turn...";
-                break;
-                
-            case 5:
-                if (_localResultConfirmed)
-                {
-                    if (panelWait) panelWait.SetActive(true);
-                    statusText.text = "Confirmed." + timerText;
-                }
-                else
-                {
-                    if (panelResult) panelResult.SetActive(true);
-                    
-                    float bet = manager.GetSeatBet(seatIndex);
-                    float payout = manager.GetSeatPayout(seatIndex);
-                    
-                    if (bet > 0)
-                    {
-                        if (payout > bet) statusText.text = $"YOU WIN! +${payout - bet:F0}" + timerText;
-                        else if (payout == bet) statusText.text = "PUSH (DRAW)" + timerText;
-                        else statusText.text = "YOU LOSE" + timerText;
-                    }
-                    else
-                    {
-                        statusText.text = "Game Over" + timerText;
-                    }
-                }
-                break;
+                statusText.text = "Ready! Waiting...";
+            }
+            else
+            {
+                if (panelBet) panelBet.SetActive(true);
+                statusText.text = "Place Your Bet & Ready";
+            }
         }
     }
 
@@ -283,13 +271,11 @@ public class BlackjackTab : UdonSharpBehaviour
     public void OnClickLeave()
     {
         if (!IsOwner()) return;
-
         if (manager.GetGameState() <= 1 && !manager.GetSeatReady(seatIndex))
         {
             float currentBet = manager.GetSeatBet(seatIndex);
             if (currentBet > 0) manager.RequestUpdateBet(seatIndex, -(int)currentBet);
         }
-
         _ownerPlayerId = -1;
         _localResultConfirmed = false;
         _carriedOverBetAmount = 0;
@@ -326,7 +312,6 @@ public class BlackjackTab : UdonSharpBehaviour
             OnClickResetBet();
             return;
         }
-        
         int allMoney = (int)manager.udonChips.money;
         if (allMoney > 0) TryChangeBet(allMoney);
     }
@@ -408,13 +393,11 @@ public class BlackjackTab : UdonSharpBehaviour
         if (container == null) return;
         foreach (Transform child in container) Destroy(child.gameObject);
         if (cardIconPrefab == null || cards == null) return;
-        
         for (int i = 0; i < count; i++)
         {
             GameObject icon = Instantiate(cardIconPrefab);
             icon.transform.SetParent(container, false);
             CasinoCardUI ui = icon.GetComponent<CasinoCardUI>();
-            
             if (ui != null)
             {
                 if (hideHoleCard && i == 1) ui.SetCard(-1);

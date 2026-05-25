@@ -1,5 +1,5 @@
 ﻿/* * Canvas Name: BlackjackManager
- * Version: 40
+ * Version: 41
  */
 using UdonSharp;
 using UnityEngine;
@@ -40,6 +40,7 @@ public class BlackjackManager : UdonSharpBehaviour
     [UdonSynced] private bool[] _seatReadies = new bool[7];
     [UdonSynced] private float[] _lastInitialBets = new float[7];
     [UdonSynced] private bool[] _seatResultConfirmed = new bool[7];
+    [UdonSynced] private bool[] _hasGameParticipation = new bool[7]; // ★追加
 
     [UdonSynced] private int[] _allPlayerHands = new int[70]; 
     [UdonSynced] private int[] _playerHandCounts = new int[7]; 
@@ -77,20 +78,12 @@ public class BlackjackManager : UdonSharpBehaviour
         }
     }
 
-    public float GetAutoTimer()
-    {
-        return _autoTimer;
-    }
-
+    public float GetAutoTimer() { return _autoTimer; }
     public void ToggleAutoMode()
     {
         if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
-        
         isAutoMode = !isAutoMode;
-        if (isAutoMode && _currentState == STATE_JUDGE)
-        {
-            _autoTimer = autoClearDelay;
-        }
+        if (isAutoMode && _currentState == STATE_JUDGE) _autoTimer = autoClearDelay;
         RequestSerialization();
     }
 
@@ -101,41 +94,25 @@ public class BlackjackManager : UdonSharpBehaviour
     public float GetSeatPayout(int seatIndex) { return (seatIndex >= 0 && seatIndex < maxSeats) ? _seatPayouts[seatIndex] : 0f; }
     public bool GetSeatReady(int seatIndex) { return (seatIndex >= 0 && seatIndex < maxSeats) ? _seatReadies[seatIndex] : false; }
     public bool GetSeatResultConfirmed(int seatIndex) { return (seatIndex >= 0 && seatIndex < maxSeats) ? _seatResultConfirmed[seatIndex] : false; }
+    public bool HasGameParticipation(int seatIndex) { return (seatIndex >= 0 && seatIndex < maxSeats) ? _hasGameParticipation[seatIndex] : false; } // ★追加
     public bool IsCutCardDrawn() { return _isCutCardDrawn; }
 
     public int[] GetPlayerHand(int seatIndex)
     {
         int[] hand = new int[10];
         int startIdx = seatIndex * 10;
-        for (int i = 0; i < 10; i++)
-        {
-            if (startIdx + i < _allPlayerHands.Length)
-            {
-                hand[i] = _allPlayerHands[startIdx + i];
-            }
-        }
+        for (int i = 0; i < 10; i++) if (startIdx + i < _allPlayerHands.Length) hand[i] = _allPlayerHands[startIdx + i];
         return hand;
     }
 
-    public int GetPlayerHandCount(int seatIndex)
-    {
-        return _playerHandCounts[seatIndex];
-    }
-
+    public int GetPlayerHandCount(int seatIndex) { return _playerHandCounts[seatIndex]; }
     public int[] GetDealerHand()
     {
         int[] hand = new int[10];
-        for (int i = 0; i < 10; i++)
-        {
-            hand[i] = _dealerHand[i];
-        }
+        for (int i = 0; i < 10; i++) hand[i] = _dealerHand[i];
         return hand;
     }
-
-    public int GetDealerHandCount()
-    {
-        return _dealerHandCount;
-    }
+    public int GetDealerHandCount() { return _dealerHandCount; }
 
     private bool CheckAllReady()
     {
@@ -157,6 +134,7 @@ public class BlackjackManager : UdonSharpBehaviour
         _seatOwnerIds[seatIndex] = player.playerId;
         _seatReadies[seatIndex] = false;
         _seatResultConfirmed[seatIndex] = false;
+        _hasGameParticipation[seatIndex] = false; // 新規着席時は参加権なし
         RequestSerialization();
     }
 
@@ -169,24 +147,18 @@ public class BlackjackManager : UdonSharpBehaviour
         _playerHandCounts[seatIndex] = 0;
         _seatReadies[seatIndex] = false;
         _seatResultConfirmed[seatIndex] = false;
+        _hasGameParticipation[seatIndex] = false;
 
         bool anyoneLeft = false;
-        for (int i = 0; i < maxSeats; i++)
-        {
-            if (_seatOwnerIds[i] != -1)
-            {
-                anyoneLeft = true;
-                break;
-            }
-        }
+        for (int i = 0; i < maxSeats; i++) if (_seatOwnerIds[i] != -1) { anyoneLeft = true; break; }
 
         if (!anyoneLeft && deckSystem != null)
         {
             deckSystem.ShuffleDeck();
             _isCutCardDrawn = false;
+            ClearGame();
         }
-        
-        if (isAutoMode && CheckAllReady()) StartDealing();
+        else if (isAutoMode && CheckAllReady()) StartDealing();
         else RequestSerialization();
     }
 
@@ -224,7 +196,6 @@ public class BlackjackManager : UdonSharpBehaviour
             udonChips.money += _seatBets[seatIndex];
             udonChips.money -= lastBet;
             _seatBets[seatIndex] = lastBet;
-            
             _seatReadies[seatIndex] = false;
             _currentState = STATE_BETTING;
             RequestSerialization();
@@ -298,7 +269,11 @@ public class BlackjackManager : UdonSharpBehaviour
 
         for (int i = 0; i < maxSeats; i++)
         {
-            if (_seatOwnerIds[i] != -1 && _seatBets[i] > 0 && _seatReadies[i]) _lastInitialBets[i] = _seatBets[i];
+            if (_seatOwnerIds[i] != -1 && _seatBets[i] > 0 && _seatReadies[i])
+            {
+                _lastInitialBets[i] = _seatBets[i];
+                _hasGameParticipation[i] = true; // ★参加権を確定
+            }
         }
 
         if (deckSystem.GetRemainingCardsCount() < 20)
@@ -312,7 +287,7 @@ public class BlackjackManager : UdonSharpBehaviour
 
         for (int i = 0; i < maxSeats; i++)
         {
-            if (_seatOwnerIds[i] != -1 && _seatBets[i] > 0 && _seatReadies[i])
+            if (_hasGameParticipation[i])
             {
                 DrawCardForSeat(i);
                 DrawCardForSeat(i);
@@ -338,6 +313,7 @@ public class BlackjackManager : UdonSharpBehaviour
             _playerHandCounts[i] = 0;
             _seatReadies[i] = false;
             _seatResultConfirmed[i] = false;
+            _hasGameParticipation[i] = false; // リセット
         }
         _dealerHandCount = 0;
         _payoutReceived = false;
@@ -348,7 +324,6 @@ public class BlackjackManager : UdonSharpBehaviour
     public void ForceResetTable()
     {
         if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
-        
         _currentState = STATE_WAITING;
         _activeSeatIndex = -1;
         _dealerHandCount = 0;
@@ -356,7 +331,6 @@ public class BlackjackManager : UdonSharpBehaviour
         _payoutReceived = false;
         _autoTimer = 0;
         isAutoMode = false;
-        
         for (int i = 0; i < maxSeats; i++)
         {
             _seatOwnerIds[i] = -1;
@@ -365,11 +339,10 @@ public class BlackjackManager : UdonSharpBehaviour
             _seatReadies[i] = false;
             _playerHandCounts[i] = 0;
             _seatResultConfirmed[i] = false;
+            _hasGameParticipation[i] = false;
         }
-        
         for (int j = 0; j < _dealerHand.Length; j++) _dealerHand[j] = 0;
         for (int k = 0; k < _allPlayerHands.Length; k++) _allPlayerHands[k] = 0;
-        
         if (deckSystem != null) deckSystem.ShuffleDeck();
         RequestSerialization();
     }
@@ -393,7 +366,7 @@ public class BlackjackManager : UdonSharpBehaviour
         int next = -1;
         for (int i = _activeSeatIndex + 1; i < maxSeats; i++)
         {
-            if (_seatOwnerIds[i] != -1 && _seatBets[i] > 0 && _playerHandCounts[i] > 0)
+            if (_hasGameParticipation[i] && _playerHandCounts[i] > 0)
             {
                 next = i;
                 break;
@@ -417,13 +390,11 @@ public class BlackjackManager : UdonSharpBehaviour
     public void DealerDrawLoop()
     {
         if (!Networking.IsOwner(gameObject)) return;
-        
         if (logic.CalculateTotal(_dealerHand, _dealerHandCount) >= 17 || _dealerHandCount >= 10)
         {
             JudgeOutcome();
             return;
         }
-        
         _dealerHand[_dealerHandCount++] = DrawFromDeck();
         RequestSerialization();
         SendCustomEventDelayedSeconds(nameof(DealerDrawLoop), 0.5f);
@@ -433,15 +404,13 @@ public class BlackjackManager : UdonSharpBehaviour
     {
         int dTotal = logic.CalculateTotal(_dealerHand, _dealerHandCount);
         bool dBJ = logic.IsBlackjack(_dealerHand, _dealerHandCount);
-        
         for (int i = 0; i < maxSeats; i++)
         {
-            if (_seatOwnerIds[i] != -1 && _seatBets[i] > 0 && _playerHandCounts[i] > 0)
+            if (_hasGameParticipation[i] && _playerHandCounts[i] > 0)
             {
                 int pTotal = logic.CalculateTotal(GetPlayerHand(i), _playerHandCounts[i]);
                 bool pBJ = logic.IsBlackjack(GetPlayerHand(i), _playerHandCounts[i]);
                 float bet = _seatBets[i];
-                
                 if (pTotal > 21) _seatPayouts[i] = 0;
                 else if (pBJ && !dBJ) _seatPayouts[i] = bet * 2.5f;
                 else if (pBJ && dBJ) _seatPayouts[i] = bet * 1.0f;
@@ -449,10 +418,8 @@ public class BlackjackManager : UdonSharpBehaviour
                 else if (pTotal == dTotal) _seatPayouts[i] = bet * 1.0f;
             }
         }
-        
         _currentState = STATE_JUDGE;
         _autoTimer = autoClearDelay; 
-        
         RequestSerialization();
         ProcessLocalPayout();
     }
@@ -461,7 +428,6 @@ public class BlackjackManager : UdonSharpBehaviour
     {
         if (_payoutReceived || udonChips == null) return;
         _payoutReceived = true;
-        
         for (int i = 0; i < maxSeats; i++)
         {
             if (_seatOwnerIds[i] == Networking.LocalPlayer.playerId && _seatPayouts[i] > 0)
