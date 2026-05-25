@@ -74,3 +74,8 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 .vsconfig
+/Assets/SerializedUdonPrograms
+/Assets/UdonChips
+/Packages/com.vrchat.core.vpm-resolver
+ProjectSettings/ProjectSettings.asset
+/Assets/UdonSharp
