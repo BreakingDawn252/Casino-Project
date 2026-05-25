@@ -79,3 +79,4 @@ crashlytics-build.properties
 /Packages/com.vrchat.core.vpm-resolver
 ProjectSettings/ProjectSettings.asset
 /Assets/UdonSharp
+*.asset
