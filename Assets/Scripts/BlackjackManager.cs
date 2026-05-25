@@ -1,5 +1,5 @@
 ﻿/* * Canvas Name: BlackjackManager
- * Version: 39
+ * Version: 40
  */
 using UdonSharp;
 using UnityEngine;
@@ -55,10 +55,7 @@ public class BlackjackManager : UdonSharpBehaviour
     {
         if (_currentState == STATE_JUDGE)
         {
-            if (_autoTimer <= 0)
-            {
-                _autoTimer = autoClearDelay;
-            }
+            if (_autoTimer <= 0) _autoTimer = autoClearDelay; 
             ProcessLocalPayout();
         }
         else if (_currentState == STATE_WAITING || _currentState == STATE_BETTING)
@@ -87,10 +84,7 @@ public class BlackjackManager : UdonSharpBehaviour
 
     public void ToggleAutoMode()
     {
-        if (!Networking.IsOwner(gameObject))
-        {
-            Networking.SetOwner(Networking.LocalPlayer, gameObject);
-        }
+        if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
         
         isAutoMode = !isAutoMode;
         if (isAutoMode && _currentState == STATE_JUDGE)
@@ -176,7 +170,6 @@ public class BlackjackManager : UdonSharpBehaviour
         _seatReadies[seatIndex] = false;
         _seatResultConfirmed[seatIndex] = false;
 
-        // 全員が退席したかチェック
         bool anyoneLeft = false;
         for (int i = 0; i < maxSeats; i++)
         {
@@ -187,7 +180,6 @@ public class BlackjackManager : UdonSharpBehaviour
             }
         }
 
-        // 無人ならデッキをシャッフル
         if (!anyoneLeft && deckSystem != null)
         {
             deckSystem.ShuffleDeck();

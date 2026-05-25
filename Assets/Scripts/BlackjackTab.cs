@@ -1,5 +1,5 @@
 ﻿/* * Canvas Name: BlackjackTab
- * Version: 25
+ * Version: 27
  */
 using UdonSharp;
 using UnityEngine;
@@ -51,6 +51,9 @@ public class BlackjackTab : UdonSharpBehaviour
     private bool _isSubtractMode = false;
     private float _carriedOverBetAmount = 0f; 
 
+    private bool _pendingAutoBet = false;
+    private float _autoBetTimer = 0f;
+
     void Start()
     {
         UpdateUI();
@@ -72,12 +75,14 @@ public class BlackjackTab : UdonSharpBehaviour
             {
                 _ownerPlayerId = -1;
                 _carriedOverBetAmount = 0;
+                _pendingAutoBet = false;
                 RequestSerialization();
             }
             else
             {
                 _ownerPlayerId = -1;
                 _carriedOverBetAmount = 0;
+                _pendingAutoBet = false;
             }
             UpdateUI();
         }
@@ -98,7 +103,21 @@ public class BlackjackTab : UdonSharpBehaviour
         {
             if (IsOwner() && _carriedOverBetAmount > 0 && manager.GetSeatBet(seatIndex) == 0)
             {
-                TryChangeBet((int)_carriedOverBetAmount);
+                _pendingAutoBet = true;
+                _autoBetTimer = 0.5f;
+            }
+        }
+
+        if (_pendingAutoBet)
+        {
+            _autoBetTimer -= Time.deltaTime;
+            if (_autoBetTimer <= 0)
+            {
+                _pendingAutoBet = false;
+                if (IsOwner() && _carriedOverBetAmount > 0 && manager.GetSeatBet(seatIndex) == 0)
+                {
+                    TryChangeBet((int)_carriedOverBetAmount);
+                }
             }
         }
 
@@ -264,9 +283,17 @@ public class BlackjackTab : UdonSharpBehaviour
     public void OnClickLeave()
     {
         if (!IsOwner()) return;
+
+        if (manager.GetGameState() <= 1 && !manager.GetSeatReady(seatIndex))
+        {
+            float currentBet = manager.GetSeatBet(seatIndex);
+            if (currentBet > 0) manager.RequestUpdateBet(seatIndex, -(int)currentBet);
+        }
+
         _ownerPlayerId = -1;
         _localResultConfirmed = false;
-        _carriedOverBetAmount = 0; 
+        _carriedOverBetAmount = 0;
+        _pendingAutoBet = false;
         RequestSerialization();
         manager.OnPlayerStandUp(seatIndex);
         UpdateUI();
