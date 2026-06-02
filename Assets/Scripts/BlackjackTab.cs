@@ -1,5 +1,5 @@
 ﻿/* * Canvas Name: BlackjackTab
- * Version: 34
+ * Version: 35
  */
 using UdonSharp;
 using UnityEngine;
@@ -11,7 +11,6 @@ using TMPro;
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class BlackjackTab : UdonSharpBehaviour
 {
-    // [中略: フィールド変数等は変更なしのため省略せず全て記述します]
     [Header("---------------- System ----------------")]
     public BlackjackManager manager;
     public int seatIndex;
@@ -34,6 +33,12 @@ public class BlackjackTab : UdonSharpBehaviour
     public Transform handContainer;
     public Transform dealerHandContainer;
     public GameObject cardIconPrefab;
+
+    [Header("---------------- Split UI ----------------")]
+    public Transform handContainerSp;
+    public GameObject mainHandDarkener;
+    public GameObject spHandDarkener;
+    public Button splitButton;
 
     [UdonSynced] private int _ownerPlayerId = -1;
 
@@ -150,6 +155,9 @@ public class BlackjackTab : UdonSharpBehaviour
         if (manager.udonChips != null && manager.udonChips.money != _lastMoney) needUpdate = true;
         if (manager.GetSeatReady(seatIndex) != _lastReadyState) needUpdate = true;
 
+        // スプリット用の変数が変化した場合も更新が必要
+        if (manager.IsSplitTurn() != (_lastGameState == 3 && mainHandDarkener != null && mainHandDarkener.activeSelf)) needUpdate = true;
+
         if (needUpdate) UpdateUI();
     }
 
@@ -171,6 +179,35 @@ public class BlackjackTab : UdonSharpBehaviour
         bool hideHoleCard = (_lastGameState <= 3 && _lastDealerHandCount >= 2);
         RefreshCards(dealerHandContainer, manager.GetDealerHand(), _lastDealerHandCount, hideHoleCard);
         RefreshCards(handContainer, manager.GetPlayerHand(seatIndex), _lastHandCount, false);
+
+        // スプリット手札の表示制御
+        float betSp = manager.GetSeatBetSp(seatIndex);
+        bool hasSplit = (betSp > 0);
+        if (handContainerSp != null)
+        {
+            handContainerSp.gameObject.SetActive(hasSplit);
+            if (hasSplit)
+            {
+                RefreshCards(handContainerSp, manager.GetPlayerHandSp(seatIndex), manager.GetPlayerHandCountSp(seatIndex), false);
+            }
+        }
+
+        // グレーの板の制御
+        if (mainHandDarkener != null) mainHandDarkener.SetActive(false);
+        if (spHandDarkener != null) spHandDarkener.SetActive(false);
+
+        if (hasSplit && _lastGameState == 3 && _lastTurnSeat == seatIndex)
+        {
+            if (manager.IsSplitTurn())
+            {
+                if (mainHandDarkener != null) mainHandDarkener.SetActive(true);
+            }
+            else
+            {
+                if (spHandDarkener != null) spHandDarkener.SetActive(true);
+            }
+        }
+
         UpdateMoneyDisplay();
 
         if (panelJoin) panelJoin.SetActive(false);
@@ -182,7 +219,6 @@ public class BlackjackTab : UdonSharpBehaviour
         bool isTaken = (_ownerPlayerId != -1);
         bool isMe = (Networking.LocalPlayer != null && Networking.LocalPlayer.playerId == _ownerPlayerId);
 
-        // 1. 誰も座っていない席
         if (!isTaken)
         {
             if (panelJoin) panelJoin.SetActive(true);
@@ -190,7 +226,6 @@ public class BlackjackTab : UdonSharpBehaviour
             return;
         }
 
-        // 2. 他人が座っている席
         if (!isMe)
         {
             if (panelWait) panelWait.SetActive(true);
@@ -198,8 +233,6 @@ public class BlackjackTab : UdonSharpBehaviour
             return;
         }
 
-        // 3. 自分が座っている席
-        // ★修正: 自分が参加権利を持っていない場合、ゲーム進行中(Betting以外)は常にウェイト
         bool hasParticipation = manager.HasGameParticipation(seatIndex);
         if (_lastGameState > 1 && !hasParticipation)
         {
@@ -210,11 +243,33 @@ public class BlackjackTab : UdonSharpBehaviour
 
         string timerText = (_lastAutoMode && _lastGameState == 5) ? $"\n(Next Game: {_lastAutoTimer:F0}s)" : "";
 
-        // 通常のゲームフロー
         if (_lastGameState == 3 && _lastTurnSeat == seatIndex)
         {
             if (panelAction) panelAction.SetActive(true);
             statusText.text = "Your Turn";
+
+            // Splitボタンの有効化判定
+            if (splitButton != null)
+            {
+                bool canSplit = false;
+                if (!hasSplit && !manager.IsSplitTurn() && _lastHandCount == 2)
+                {
+                    int[] hand = manager.GetPlayerHand(seatIndex);
+                    if (hand[0] > 0 && hand[1] > 0)
+                    {
+                        int rank1 = (hand[0] - 1) % 13;
+                        int rank2 = (hand[1] - 1) % 13;
+                        if (rank1 == rank2)
+                        {
+                            if (manager.udonChips != null && manager.udonChips.money >= _lastBetAmount)
+                            {
+                                canSplit = true;
+                            }
+                        }
+                    }
+                }
+                splitButton.interactable = canSplit;
+            }
         }
         else if (_lastGameState >= 2 && _lastGameState <= 4)
         {
@@ -231,12 +286,13 @@ public class BlackjackTab : UdonSharpBehaviour
             else
             {
                 if (panelResult) panelResult.SetActive(true);
-                float bet = manager.GetSeatBet(seatIndex);
-                float payout = manager.GetSeatPayout(seatIndex);
-                if (bet > 0)
+                float totalBet = manager.GetSeatBet(seatIndex) + manager.GetSeatBetSp(seatIndex);
+                float totalPayout = manager.GetSeatPayout(seatIndex) + manager.GetSeatPayoutSp(seatIndex);
+                
+                if (totalBet > 0)
                 {
-                    if (payout > bet) statusText.text = $"YOU WIN! +${payout - bet:F0}" + timerText;
-                    else if (payout == bet) statusText.text = "PUSH (DRAW)" + timerText;
+                    if (totalPayout > totalBet) statusText.text = $"YOU WIN! +${totalPayout - totalBet:F0}" + timerText;
+                    else if (totalPayout == totalBet) statusText.text = "PUSH (DRAW)" + timerText;
                     else statusText.text = "YOU LOSE" + timerText;
                 }
                 else statusText.text = "Game Over" + timerText;
@@ -361,6 +417,7 @@ public class BlackjackTab : UdonSharpBehaviour
     public void OnClickHit() { if (IsOwner()) manager.RequestHit(seatIndex); }
     public void OnClickStand() { if (IsOwner()) manager.RequestStand(seatIndex); }
     public void OnClickDouble() { if (IsOwner()) manager.RequestDouble(seatIndex); } 
+    public void OnClickSplit() { if (IsOwner()) manager.RequestSplit(seatIndex); } 
     
     public void OnClickRebet()
     {
@@ -384,7 +441,17 @@ public class BlackjackTab : UdonSharpBehaviour
         {
             float currentMoney = (manager.udonChips != null) ? manager.udonChips.money : 0f;
             float currentBet = manager.GetSeatBet(seatIndex);
-            moneyText.text = $"Money: ${currentMoney:F0} \nBet: ${currentBet:F0}";
+            float currentBetSp = manager.GetSeatBetSp(seatIndex);
+            float totalBet = currentBet + currentBetSp;
+            
+            if (currentBetSp > 0)
+            {
+                moneyText.text = $"Money: ${currentMoney:F0} \nBet: ${currentBet:F0} + ${currentBetSp:F0}";
+            }
+            else
+            {
+                moneyText.text = $"Money: ${currentMoney:F0} \nBet: ${currentBet:F0}";
+            }
         }
     }
 
