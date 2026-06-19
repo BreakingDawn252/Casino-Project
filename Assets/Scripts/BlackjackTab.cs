@@ -1,5 +1,5 @@
 ﻿/* * Canvas Name: BlackjackTab
- * Version: 35
+ * Version: 40
  */
 using UdonSharp;
 using UnityEngine;
@@ -27,18 +27,17 @@ public class BlackjackTab : UdonSharpBehaviour
     public TextMeshProUGUI moneyText; 
     
     [Header("---------------- Bet Control ----------------")]
-    public TextMeshProUGUI modeButtonText;
+    public TextMeshProUGUI betModeText;
 
     [Header("---------------- Hands ----------------")]
     public Transform handContainer;
     public Transform dealerHandContainer;
     public GameObject cardIconPrefab;
-
-    [Header("---------------- Split UI ----------------")]
     public Transform handContainerSp;
-    public GameObject mainHandDarkener;
-    public GameObject spHandDarkener;
+    public CanvasGroup mainHandCanvasGroup;
+    public CanvasGroup spHandCanvasGroup;
     public Button splitButton;
+    public Button doubleButton;
 
     [UdonSynced] private int _ownerPlayerId = -1;
 
@@ -155,8 +154,7 @@ public class BlackjackTab : UdonSharpBehaviour
         if (manager.udonChips != null && manager.udonChips.money != _lastMoney) needUpdate = true;
         if (manager.GetSeatReady(seatIndex) != _lastReadyState) needUpdate = true;
 
-        // スプリット用の変数が変化した場合も更新が必要
-        if (manager.IsSplitTurn() != (_lastGameState == 3 && mainHandDarkener != null && mainHandDarkener.activeSelf)) needUpdate = true;
+        if (manager.IsSplitTurn() != (_lastGameState == 3 && mainHandCanvasGroup != null && mainHandCanvasGroup.alpha < 1f)) needUpdate = true;
 
         if (needUpdate) UpdateUI();
     }
@@ -176,35 +174,41 @@ public class BlackjackTab : UdonSharpBehaviour
         _lastHandCount = manager.GetPlayerHandCount(seatIndex);
         _lastDealerHandCount = manager.GetDealerHandCount();
 
+        // 枚数が0の時はコンテナーごと非表示にする
+        if (dealerHandContainer != null) dealerHandContainer.gameObject.SetActive(_lastDealerHandCount > 0);
+        if (handContainer != null) handContainer.gameObject.SetActive(_lastHandCount > 0);
+
         bool hideHoleCard = (_lastGameState <= 3 && _lastDealerHandCount >= 2);
         RefreshCards(dealerHandContainer, manager.GetDealerHand(), _lastDealerHandCount, hideHoleCard);
         RefreshCards(handContainer, manager.GetPlayerHand(seatIndex), _lastHandCount, false);
 
-        // スプリット手札の表示制御
         float betSp = manager.GetSeatBetSp(seatIndex);
         bool hasSplit = (betSp > 0);
+        int spHandCount = manager.GetPlayerHandCountSp(seatIndex);
+        
         if (handContainerSp != null)
         {
-            handContainerSp.gameObject.SetActive(hasSplit);
-            if (hasSplit)
+            handContainerSp.gameObject.SetActive(spHandCount > 0);
+            if (spHandCount > 0)
             {
-                RefreshCards(handContainerSp, manager.GetPlayerHandSp(seatIndex), manager.GetPlayerHandCountSp(seatIndex), false);
+                RefreshCards(handContainerSp, manager.GetPlayerHandSp(seatIndex), spHandCount, false);
             }
         }
 
-        // グレーの板の制御
-        if (mainHandDarkener != null) mainHandDarkener.SetActive(false);
-        if (spHandDarkener != null) spHandDarkener.SetActive(false);
+        // CanvasGroupによる透明度の初期化
+        if (mainHandCanvasGroup != null) mainHandCanvasGroup.alpha = 1f;
+        if (spHandCanvasGroup != null) spHandCanvasGroup.alpha = 1f;
 
+        // 自分のターンでスプリットしている場合のみ、操作していない方の手を暗くする
         if (hasSplit && _lastGameState == 3 && _lastTurnSeat == seatIndex)
         {
             if (manager.IsSplitTurn())
             {
-                if (mainHandDarkener != null) mainHandDarkener.SetActive(true);
+                if (mainHandCanvasGroup != null) mainHandCanvasGroup.alpha = 0.5f;
             }
             else
             {
-                if (spHandDarkener != null) spHandDarkener.SetActive(true);
+                if (spHandCanvasGroup != null) spHandCanvasGroup.alpha = 0.5f;
             }
         }
 
@@ -248,7 +252,6 @@ public class BlackjackTab : UdonSharpBehaviour
             if (panelAction) panelAction.SetActive(true);
             statusText.text = "Your Turn";
 
-            // Splitボタンの有効化判定
             if (splitButton != null)
             {
                 bool canSplit = false;
@@ -270,6 +273,29 @@ public class BlackjackTab : UdonSharpBehaviour
                 }
                 splitButton.interactable = canSplit;
             }
+
+            if (doubleButton != null)
+            {
+                bool canDouble = false;
+                if (manager.udonChips != null)
+                {
+                    if (!manager.IsSplitTurn())
+                    {
+                        if (_lastHandCount == 2 && manager.udonChips.money >= _lastBetAmount)
+                        {
+                            canDouble = true;
+                        }
+                    }
+                    else
+                    {
+                        if (spHandCount == 2 && manager.udonChips.money >= betSp)
+                        {
+                            canDouble = true;
+                        }
+                    }
+                }
+                doubleButton.interactable = canDouble;
+            }
         }
         else if (_lastGameState >= 2 && _lastGameState <= 4)
         {
@@ -286,16 +312,32 @@ public class BlackjackTab : UdonSharpBehaviour
             else
             {
                 if (panelResult) panelResult.SetActive(true);
-                float totalBet = manager.GetSeatBet(seatIndex) + manager.GetSeatBetSp(seatIndex);
-                float totalPayout = manager.GetSeatPayout(seatIndex) + manager.GetSeatPayoutSp(seatIndex);
                 
-                if (totalBet > 0)
+                float bet = manager.GetSeatBet(seatIndex);
+                float payout = manager.GetSeatPayout(seatIndex);
+                float payoutSp = manager.GetSeatPayoutSp(seatIndex);
+                
+                if (bet > 0)
                 {
-                    if (totalPayout > totalBet) statusText.text = $"YOU WIN! +${totalPayout - totalBet:F0}" + timerText;
-                    else if (totalPayout == totalBet) statusText.text = "PUSH (DRAW)" + timerText;
-                    else statusText.text = "YOU LOSE" + timerText;
+                    float netMain = payout - bet;
+                    string mainStr = netMain > 0 ? $"+{netMain:F0}uc" : (netMain < 0 ? $"-{Mathf.Abs(netMain):F0}uc" : "±0uc");
+
+                    if (hasSplit)
+                    {
+                        float netSp = payoutSp - betSp;
+                        string spStr = netSp > 0 ? $"+{netSp:F0}uc" : (netSp < 0 ? $"-{Mathf.Abs(netSp):F0}uc" : "±0uc");
+                        
+                        statusText.text = $"{mainStr}        {spStr}" + timerText;
+                    }
+                    else
+                    {
+                        statusText.text = mainStr + timerText;
+                    }
                 }
-                else statusText.text = "Game Over" + timerText;
+                else 
+                {
+                    statusText.text = "Game Over" + timerText;
+                }
             }
         }
         else
@@ -399,9 +441,9 @@ public class BlackjackTab : UdonSharpBehaviour
 
     private void UpdateModeText()
     {
-        if (modeButtonText != null)
+        if (betModeText != null)
         {
-            modeButtonText.text = _isSubtractMode ? "Mode: <color=red>SUB (-)</color>" : "Mode: <color=green>ADD (+)</color>";
+            betModeText.text = _isSubtractMode ? "Mode: <color=red>SUB (-)</color>" : "Mode: <color=green>ADD (+)</color>";
         }
     }
 
@@ -442,15 +484,14 @@ public class BlackjackTab : UdonSharpBehaviour
             float currentMoney = (manager.udonChips != null) ? manager.udonChips.money : 0f;
             float currentBet = manager.GetSeatBet(seatIndex);
             float currentBetSp = manager.GetSeatBetSp(seatIndex);
-            float totalBet = currentBet + currentBetSp;
             
             if (currentBetSp > 0)
             {
-                moneyText.text = $"Money: ${currentMoney:F0} \nBet: ${currentBet:F0} + ${currentBetSp:F0}";
+                moneyText.text = $"Money: {currentMoney:F0}uc \nBet: {currentBet:F0}uc + {currentBetSp:F0}uc";
             }
             else
             {
-                moneyText.text = $"Money: ${currentMoney:F0} \nBet: ${currentBet:F0}";
+                moneyText.text = $"Money: {currentMoney:F0}uc \nBet: {currentBet:F0}uc";
             }
         }
     }

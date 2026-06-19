@@ -1,5 +1,5 @@
 ﻿/* * Canvas Name: BlackjackManager
- * Version: 42
+ * Version: 43
  */
 using UdonSharp;
 using UnityEngine;
@@ -42,7 +42,6 @@ public class BlackjackManager : UdonSharpBehaviour
     [UdonSynced] private bool[] _seatResultConfirmed = new bool[7];
     [UdonSynced] private bool[] _hasGameParticipation = new bool[7]; 
 
-    // --- Split用変数群 ---
     [UdonSynced] private int[] _allPlayerHandsSp = new int[70]; 
     [UdonSynced] private int[] _playerHandCountsSp = new int[7]; 
     [UdonSynced] private float[] _seatBetsSp = new float[7]; 
@@ -105,7 +104,6 @@ public class BlackjackManager : UdonSharpBehaviour
     public bool HasGameParticipation(int seatIndex) { return (seatIndex >= 0 && seatIndex < maxSeats) ? _hasGameParticipation[seatIndex] : false; }
     public bool IsCutCardDrawn() { return _isCutCardDrawn; }
 
-    // --- Split用ゲッター ---
     public bool IsSplitTurn() { return _isSplitTurn; }
     public float GetSeatBetSp(int seatIndex) { return (seatIndex >= 0 && seatIndex < maxSeats) ? _seatBetsSp[seatIndex] : 0f; }
     public float GetSeatPayoutSp(int seatIndex) { return (seatIndex >= 0 && seatIndex < maxSeats) ? _seatPayoutsSp[seatIndex] : 0f; }
@@ -252,23 +250,20 @@ public class BlackjackManager : UdonSharpBehaviour
         RequestSerialization();
     }
 
-    // ★新規: スプリット要求の処理
     public void RequestSplit(int seatIndex)
     {
         if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
         if (_currentState != STATE_PLAYER_TURN || _activeSeatIndex != seatIndex) return;
-        if (_isSplitTurn) return; // 既にSpターンの場合は不可
-        if (_seatBetsSp[seatIndex] > 0) return; // 既にスプリット済みの場合は不可
-        if (_playerHandCounts[seatIndex] != 2) return; // 手札が2枚の時のみ
+        if (_isSplitTurn) return; 
+        if (_seatBetsSp[seatIndex] > 0) return; 
+        if (_playerHandCounts[seatIndex] != 2) return; 
         
         float betAmount = _seatBets[seatIndex];
         if (udonChips == null || udonChips.money < betAmount) return;
         
-        // 追加ベット支払い
         udonChips.money -= betAmount;
         _seatBetsSp[seatIndex] = betAmount;
         
-        // 2枚目のカードをSpハンドの1枚目へ移動
         int card1 = _allPlayerHands[seatIndex * 10];
         int card2 = _allPlayerHands[seatIndex * 10 + 1];
         
@@ -278,18 +273,15 @@ public class BlackjackManager : UdonSharpBehaviour
         _playerHandCounts[seatIndex] = 1;
         _playerHandCountsSp[seatIndex] = 1;
         
-        // Aのスプリットか判定 (1枚の合計が11ならAce)
         int val = logic.CalculateTotal(new int[] { card1 }, 1);
         bool isAce = (val == 11);
         _isSplitAces[seatIndex] = isAce;
         
-        // 両方に1枚ずつ配る
         DrawCardForSeat(seatIndex);
         DrawCardForSpSeat(seatIndex);
         
         if (isAce)
         {
-            // Aのスプリットなら両方強制スタンドになるため、ターンを強制終了して次へ
             _isSplitTurn = true; 
             MoveToNextTurn();
         }
@@ -337,7 +329,8 @@ public class BlackjackManager : UdonSharpBehaviour
         {
             if (!_isSplitTurn)
             {
-                if (udonChips.money >= _seatBets[seatIndex])
+                // ★修正: メインハンドの枚数が2枚の時のみ制限
+                if (_playerHandCounts[seatIndex] == 2 && udonChips.money >= _seatBets[seatIndex])
                 {
                     udonChips.money -= _seatBets[seatIndex];
                     _seatBets[seatIndex] *= 2;
@@ -348,7 +341,8 @@ public class BlackjackManager : UdonSharpBehaviour
             }
             else
             {
-                if (udonChips.money >= _seatBetsSp[seatIndex])
+                // ★修正: スプリットハンドの枚数が2枚の時のみ制限
+                if (_playerHandCountsSp[seatIndex] == 2 && udonChips.money >= _seatBetsSp[seatIndex])
                 {
                     udonChips.money -= _seatBetsSp[seatIndex];
                     _seatBetsSp[seatIndex] *= 2;
@@ -489,21 +483,18 @@ public class BlackjackManager : UdonSharpBehaviour
         _playerHandCountsSp[seatIndex]++;
     }
 
-    // ★改修: ターンの進行ロジック
     private void MoveToNextTurn()
     {
         if (_activeSeatIndex != -1)
         {
-            // メインハンドが終了し、かつスプリットが存在する場合
             if (!_isSplitTurn && _seatBetsSp[_activeSeatIndex] > 0)
             {
                 _isSplitTurn = true;
                 RequestSerialization();
-                return; // 同じ人のSpハンドのターンへ
+                return; 
             }
         }
 
-        // 次のプレイヤーを検索
         _isSplitTurn = false;
         int next = -1;
         for (int i = _activeSeatIndex + 1; i < maxSeats; i++)
@@ -553,7 +544,6 @@ public class BlackjackManager : UdonSharpBehaviour
             {
                 bool hasSplit = _seatBetsSp[i] > 0;
                 
-                // メインハンドの判定
                 int pTotal = logic.CalculateTotal(GetPlayerHand(i), _playerHandCounts[i]);
                 bool pBJ = logic.IsBlackjack(GetPlayerHand(i), _playerHandCounts[i]) && !hasSplit;
                 float bet = _seatBets[i];
@@ -565,11 +555,10 @@ public class BlackjackManager : UdonSharpBehaviour
                 else if (pTotal == dTotal) _seatPayouts[i] = bet * 1.0f;
                 else _seatPayouts[i] = 0;
 
-                // Spハンドの判定
                 if (hasSplit)
                 {
                     int spTotal = logic.CalculateTotal(GetPlayerHandSp(i), _playerHandCountsSp[i]);
-                    float betSp = _seatBetsSp[i]; // スプリットはBJにならない(21扱い)
+                    float betSp = _seatBetsSp[i]; 
                     
                     if (spTotal > 21) _seatPayoutsSp[i] = 0;
                     else if (dTotal > 21 || spTotal > dTotal) _seatPayoutsSp[i] = betSp * 2.0f;
