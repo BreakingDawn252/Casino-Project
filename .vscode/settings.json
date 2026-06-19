@@ -52,5 +52,6 @@
         "Temp/": true
     },
     "dotnet.defaultSolution": "Casino Project.sln",
-    "editor.wordWrap": "on"
+    "editor.wordWrap": "on",
+    "dotnet.preferCSharpExtension": true
 }
