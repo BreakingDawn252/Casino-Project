@@ -6,8 +6,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using VRC.SDKBase;
 using VRC.Udon;
-using TMPro;
-using System.Diagnostics;
+using TMPro; 
 
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class BlackjackTab : UdonSharpBehaviour
@@ -60,15 +59,12 @@ public class BlackjackTab : UdonSharpBehaviour
     private bool _isSubtractMode = false;
     private float _carriedOverBetAmount = 0f; 
 
-    private bool _pendingAutoBet = false;
-    private float _autoBetTimer = 0f;
     private bool _isAutoBetEnabled = false;
 
     void Start()
     {
         UpdateUI();
         UpdateModeText();
-        UpdateAutoBetText();
     }
 
     public override void OnDeserialization()
@@ -87,8 +83,6 @@ public class BlackjackTab : UdonSharpBehaviour
                 _ownerPlayerId = -1;
                 _carriedOverBetAmount = 0;
                 _pendingAutoBet = false;
-                _isAutoBetEnabled = false;
-                UpdateAutoBetText();
                 RequestSerialization();
             }
             else
@@ -96,8 +90,6 @@ public class BlackjackTab : UdonSharpBehaviour
                 _ownerPlayerId = -1;
                 _carriedOverBetAmount = 0;
                 _pendingAutoBet = false;
-                _isAutoBetEnabled = false;
-                UpdateAutoBetText();
             }
             UpdateUI();
         }
@@ -116,7 +108,7 @@ public class BlackjackTab : UdonSharpBehaviour
 
         if (enteredWaiting || enteredBetting)
         {
-            if (IsOwner() && _isAutoBetEnabled && _carriedOverBetAmount > 0 && manager.GetSeatBet(seatIndex) == 0)
+            if (IsOwner() && _carriedOverBetAmount > 0 && manager.GetSeatBet(seatIndex) == 0)
             {
                 _pendingAutoBet = true;
                 _autoBetTimer = 0.5f;
@@ -131,17 +123,26 @@ public class BlackjackTab : UdonSharpBehaviour
                 _pendingAutoBet = false;
                 if (IsOwner() && _carriedOverBetAmount > 0 && manager.GetSeatBet(seatIndex) == 0)
                 {
-                    if (manager.udonChips != null && manager.udonChips.money >= _carriedOverBetAmount)
-                    {
-                        manager.RequestUpdateBet(seatIndex, (int)_carriedOverBetAmount);
-                        manager.RequestReady(seatIndex, true);
-                        UpdateUI();
-                    }
-                    else
-                    {
-                        _isAutoBetEnabled = false;
-                        UpdateAutoBetText();
-                    }
+                    TryChangeBet((int)_carriedOverBetAmount);
+                }
+            }
+        }
+
+        if (enteredBetting)
+        {
+            if (IsOwner() && _isAutoBetEnabled && _carriedOverBetAmount > 0 && manager.GetSeatBet(seatIndex) == 0)
+            {
+                if (manager.udonChips != null && manager.udonChips.money >= _carriedOverBetAmount)
+                {
+                    manager.RequestUpdateBet(seatIndex, (int)_carriedOverBetAmount);
+                    manager.RequestReady(seatIndex, true);
+                    UpdateUI();
+                }
+                else
+                {
+                    // 資金不足時は安全のためオートベットをOFFにする
+                    _isAutoBetEnabled = false;
+                    UpdateAutoBetText();
                 }
             }
         }
@@ -194,6 +195,7 @@ public class BlackjackTab : UdonSharpBehaviour
         _lastHandCount = manager.GetPlayerHandCount(seatIndex);
         _lastDealerHandCount = manager.GetDealerHandCount();
 
+        // 枚数が0の時はコンテナーごと非表示にする
         if (dealerHandContainer != null) dealerHandContainer.gameObject.SetActive(_lastDealerHandCount > 0);
         if (handContainer != null) handContainer.gameObject.SetActive(_lastHandCount > 0);
 
@@ -214,9 +216,11 @@ public class BlackjackTab : UdonSharpBehaviour
             }
         }
 
+        // CanvasGroupによる透明度の初期化
         if (mainHandCanvasGroup != null) mainHandCanvasGroup.alpha = 1f;
         if (spHandCanvasGroup != null) spHandCanvasGroup.alpha = 1f;
 
+        // 自分のターンでスプリットしている場合のみ、操作していない方の手を暗くする
         if (hasSplit && _lastGameState == 3 && _lastTurnSeat == seatIndex)
         {
             if (manager.IsSplitTurn())
@@ -395,8 +399,6 @@ public class BlackjackTab : UdonSharpBehaviour
         _localResultConfirmed = false;
         _carriedOverBetAmount = 0;
         _pendingAutoBet = false;
-        _isAutoBetEnabled = false;
-        UpdateAutoBetText();
         RequestSerialization();
         manager.OnPlayerStandUp(seatIndex);
         UpdateUI();
@@ -457,23 +459,12 @@ public class BlackjackTab : UdonSharpBehaviour
         _isSubtractMode = true;
         UpdateModeText();
     }
-
     public void OnClickToggleAutoBet()
     {
         if (!IsOwner()) return;
         _isAutoBetEnabled = !_isAutoBetEnabled;
         UpdateAutoBetText();
-
-        if (_isAutoBetEnabled && (manager.GetGameState() == 0 || manager.GetGameState() == 1))
-        {
-            if (_carriedOverBetAmount > 0 && manager.GetSeatBet(seatIndex) == 0)
-            {
-                _pendingAutoBet = true;
-                _autoBetTimer = 0.2f;
-            }
-        }
     }
-
     private void UpdateModeText()
     {
         if (betModeText != null)
@@ -481,7 +472,6 @@ public class BlackjackTab : UdonSharpBehaviour
             betModeText.text = _isSubtractMode ? "Mode: <color=red>SUB (-)</color>" : "Mode: <color=green>ADD (+)</color>";
         }
     }
-
     private void UpdateAutoBetText()
     {
         if (autoBetButtonText != null)
@@ -489,7 +479,6 @@ public class BlackjackTab : UdonSharpBehaviour
             autoBetButtonText.text = _isAutoBetEnabled ? "Auto Bet: <color=green>ON</color>" : "Auto Bet: <color=red>OFF</color>";
         }
     }
-
     private void TryChangeBet(int amount)
     {
         if (!IsOwner()) return;

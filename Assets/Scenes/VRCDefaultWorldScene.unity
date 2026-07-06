@@ -2261,7 +2261,6 @@ MonoBehaviour:
   statusText: {fileID: 142170012}
   moneyText: {fileID: 1718456393}
   betModeText: {fileID: 1745675047}
-  autoBetButtonText: {fileID: 1877667414}
   handContainer: {fileID: 1026372946}
   dealerHandContainer: {fileID: 1976513024}
   cardIconPrefab: {fileID: 7173847575178948518, guid: b22ca680a68ebb842831efa42d68265e,
@@ -6518,9 +6517,9 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 2009634073}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 0, y: -0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0.3}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1026372947
@@ -8378,7 +8377,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.757, y: 0}
+  m_AnchoredPosition: {x: 0.058, y: -0.4}
   m_SizeDelta: {x: 0.45, y: 0.45}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1345520422
@@ -8434,7 +8433,7 @@ MonoBehaviour:
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
-          m_StringArgument: OnClickToggleAutoBet()D
+          m_StringArgument: OnClickToggleAutoBet()
           m_BoolArgument: 0
         m_CallState: 2
 --- !u!114 &1345520423
